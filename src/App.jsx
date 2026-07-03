@@ -6,13 +6,13 @@ import {
 } from 'firebase/firestore';
 
 const localFirebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
+  apiKey: "AIzaSyCQVxc53-52r9rXcg8cNmFLn-YCwHCRcKQ",
+  authDomain: "th-imfcamp-sesystem.firebaseapp.com",
+  projectId: "th-imfcamp-sesystem",
+  storageBucket: "th-imfcamp-sesystem.firebasestorage.app",
+  messagingSenderId: "235862076697",
+  appId: "1:235862076697:web:e562d76986df25615fe988",
+  measurementId: "G-K0KLJZMWJ8"
 };
 
 const firebaseConfig = typeof __firebase_config !== 'undefined'
