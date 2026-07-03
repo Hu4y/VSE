@@ -1,0 +1,39 @@
+@import url('https://fonts.googleapis.com/css2?family=Tai+Heritage+Pro:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+body, html, #root {
+margin: 0;
+padding: 0;
+width: 100vw;
+min-height: 100vh;
+color: #1e293b;
+background-color: #f8fafc;
+/* 預設：英文使用 Tai Heritage Pro，中文使用 Noto Serif TC (思源宋體) */
+font-family: 'Inter', 'Noto Serif TC', serif;
+}
+
+input, select, button, textarea {
+font-family: 'Inter', 'Noto Serif TC', serif;
+}
+
+.dark body, .dark html, .dark #root {
+color: #f1f5f9;
+background-color: #020617;
+}
+}
+
+/* 防止內容溢出 */
+html, #root {
+margin: 0;
+padding: 0;
+width: 100%;
+overflow-x: hidden;
+}
