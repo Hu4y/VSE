@@ -5,7 +5,7 @@ A real-time Virtual Stock Exchange platform developed for the 20th NYCU IMF Camp
 ## 💡Features
 ### Real-time Market Simulation
 - Leverages Firebase Firestore to achieve millisecond-level data synchronization, ensuring all participants experience price fluctuations in perfect unison.
-- mplements stochastic price movement algorithms to replicate real-world market volatility, adding unpredictability and excitement to trading sessions.
+- implements stochastic price movement algorithms to replicate real-world market volatility, adding unpredictability and excitement to trading sessions.
 - Highly optimized frontend architecture to ensure the environment remains responsive even during high-volume trading bursts.
 ### Advanced Trading Mechanisms
 - Supports flexible market orders, including both Long (Buy) and Short-selling (Sell) positions, enabling diverse investment strategies.
