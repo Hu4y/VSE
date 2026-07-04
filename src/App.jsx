@@ -5,19 +5,15 @@ import {
   getFirestore, doc, setDoc, collection, onSnapshot, updateDoc, deleteDoc, writeBatch, addDoc, query, orderBy, limit, getDocs
 } from 'firebase/firestore';
 
-const localFirebaseConfig = {
-  apiKey: "AIzaSyCQVxc53-52r9rXcg8cNmFLn-YCwHCRcKQ",
-  authDomain: "th-imfcamp-sesystem.firebaseapp.com",
-  projectId: "th-imfcamp-sesystem",
-  storageBucket: "th-imfcamp-sesystem.firebasestorage.app",
-  messagingSenderId: "235862076697",
-  appId: "1:235862076697:web:e562d76986df25615fe988",
-  measurementId: "G-K0KLJZMWJ8"
+const firebaseConfig = {
+apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
-
-const firebaseConfig = typeof __firebase_config !== 'undefined'
-  ? JSON.parse(__firebase_config)
-  : (localFirebaseConfig.apiKey === "YOUR_API_KEY_HERE" ? null : localFirebaseConfig);
 
 const rawAppId = typeof __app_id !== 'undefined' ? __app_id : 'camp-investment-game';
 const appId = rawAppId.replace(/\//g, '_');
@@ -249,14 +245,18 @@ export default function App() {
   }, [teams, stocks, gameState.defaultCash, calcAssets]); 
 
   useEffect(() => {
-    if (!firebaseConfig) { setLoading(false); return; }
-    const app  = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const _db  = getFirestore(app);
-    setDb(_db);
-    signInAnonymously(auth).catch(console.warn);
-    const unsub = onAuthStateChanged(auth, () => setLoading(false));
-    return () => unsub();
+    try {
+        const app  = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const _db  = getFirestore(app);
+        setDb(_db);
+        signInAnonymously(auth).catch(console.warn);
+        const unsub = onAuthStateChanged(auth, () => setLoading(false));
+        return () => unsub();
+    } catch (e) {
+        console.error("Firebase 初始化失敗:", e);
+        setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
