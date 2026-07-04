@@ -5,10 +5,6 @@ import {
   getFirestore, doc, setDoc, collection, onSnapshot, updateDoc, deleteDoc, writeBatch, addDoc, query, orderBy, limit, getDocs
 } from 'firebase/firestore';
 
-// App.jsx 最上方
-console.log("=== 環境變數偵測結果 ===");
-console.log("VITE_FIREBASE_API_KEY:", import.meta.env.VITE_FIREBASE_API_KEY);
-console.log("API_KEY 長度:", import.meta.env.VITE_FIREBASE_API_KEY ? import.meta.env.VITE_FIREBASE_API_KEY.length : "沒抓到");
 
 const firebaseConfig = {
 apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
