@@ -1,7 +1,7 @@
 # Virtual Stock Exchange Platform (VSE) 
 A real-time Virtual Stock Exchange platform developed for the 20th NYCU IMF Camp. This system provides participants with an immersive, competitive, and technically robust environment to simulate real-market trading.
 
-**URL** <br>[https://imfvse.vercel.app/]
+**URL** <br> [https://imfvse.vercel.app/](https://imfvse.vercel.app/)
 ## 💡Features
 ### Real-time Market Simulation
 - Leverages Firebase Firestore to achieve millisecond-level data synchronization, ensuring all participants experience price fluctuations in perfect unison.
