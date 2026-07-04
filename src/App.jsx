@@ -315,8 +315,8 @@ export default function App() {
       setNextBorrowRates(nbr);
     } else {
       setDraftStocks([
-        { id: 'STK01', symbol: 'AAPL', name: '蘋果科技', desc: '全球消費電子巨頭。', prices: [150], volatility: 5, borrowRate: 2 },
-        { id: 'STK02', symbol: 'TSLA', name: '特斯拉特', desc: '電動車領導者，波動劇烈。', prices: [220], volatility: 8, borrowRate: 5 },
+        { id: 'STK01', symbol: 'AAPL', name: '蘋果', desc: '全球消費電子巨頭。', prices: [150], volatility: 5, borrowRate: 2 },
+        { id: 'STK02', symbol: 'TSLA', name: '特斯拉', desc: '電動車領導者，波動劇烈。', prices: [220], volatility: 8, borrowRate: 5 },
         { id: 'STK03', symbol: 'NVDA', name: '輝達晶片', desc: 'AI 運算核心。', prices: [180], volatility: 6, borrowRate: 3 },
       ]);
     }
