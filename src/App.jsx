@@ -481,7 +481,7 @@ export default function App() {
   const gsDocRef     = () => doc(db, 'artifacts', appId, 'public', 'data', 'gameState', 'current');
   const bundleDocRef = () => doc(db, 'artifacts', appId, 'public', 'data', 'stocksBundle', 'all');
 
-  const toggleMarket = () => {
+const toggleMarket = () => {
     if (!db) return;
     if (!gameState.marketOpen) {
       const first     = !gameState.hasOpenedBefore;
@@ -496,12 +496,25 @@ export default function App() {
           try {
             const batch = writeBatch(db);
             const multiplier = 1 - (inflation / 100);
+            const logsRef = collection(db, 'artifacts', appId, 'public', 'data', 'tradeLogs'); // 🌟 新增：取得 logsRef
+
             teams.forEach(t => {
-              const baseCash = first ? (t.cash || 0) : ((t.cash || 0) * multiplier);
+              const originalCash = t.cash || 0;
+              const baseCash = first ? originalCash : Math.max(0, originalCash * multiplier);
               let sv = 0;
               stocksRef.current.forEach(s => { sv += (t.holdings?.[s.id] || 0) * getLastPrice(s); });
               batch.update(doc(db, 'artifacts', appId, 'public', 'data', 'teams', t.id),
                 { cash: baseCash, lastReportedAssets: baseCash + sv });
+
+              // 🌟 新增：產生通膨扣款紀錄
+              if (!first && originalCash > 0 && inflation > 0) {
+                const inflationCost = originalCash - baseCash;
+                const logDoc = doc(logsRef);
+                batch.set(logDoc, {
+                  ts: Date.now(), round: gsRef.current.currentRound, teamId: t.id, teamName: t.name, 
+                  action: 'inflation', symbol: '通膨扣款', qty: 0, price: 0, total: inflationCost, fee: 0, isInflation: true
+                });
+              }
             });
             batch.update(gsDocRef(), { marketOpen: true, hasOpenedBefore: true });
             await batch.commit();
@@ -1530,10 +1543,10 @@ export default function App() {
                                   <div className="flex justify-between items-start mb-2">
                                     <div className="flex items-center gap-2">
                                       <span className={`text-[10px] font-black px-1.5 py-0.5 rounded uppercase 
-                                        ${log.action === 'system' ? 'bg-emerald-100 text-emerald-600'
-                                        : log.isAutoCover || log.isMarginCall ? 'bg-amber-100 text-amber-600'
+                                        ${log.isAutoCover || log.isMarginCall ? 'bg-amber-100 text-amber-600'
+                                        : log.action === 'inflation' ? 'bg-purple-100 text-purple-600'
                                         : log.action === 'buy' ? 'bg-[#00C805]/10 text-[#00C805]' : log.action === 'sell' ? 'bg-[#FF5000]/10 text-[#FF5000]' : 'bg-blue-100 text-[#0033A0]'}`}>
-                                        {log.action === 'system' ? 'Admin' : log.isMarginCall ? '強制平倉' : log.isAutoCover ? '換局回補' : log.action === 'buy' ? '買入' : log.action === 'sell' ? '賣出' : '借券費'}
+                                        {log.isMarginCall ? '系統平倉' : log.isAutoCover ? '換局回補' : log.action === 'inflation' ? '通膨扣款' : log.action === 'buy' ? '買入' : log.action === 'sell' ? '賣出' : '借券費'}
                                       </span>
                                       <span className="font-bold text-sm">{log.symbol}</span>
                                     </div>
@@ -1541,24 +1554,18 @@ export default function App() {
                                   </div>
                                   <div className="flex justify-between items-end">
                                     <div className="text-[10px] text-slate-400">
-                                      {log.action === 'system' ? (
-                                        <>{log.symbol}<br/></>
-                                      ) : log.isAutoCover ? (
-                                        <>
-                                          空單均價 ${fmt(log.shortAvgCost)} → 平倉價 ${fmt(log.price)}<br/>
-                                        </>
-                                      ) : log.action !== 'fee' && !log.isMarginCall ? (
-                                        <>{log.qty} 股 @ ${fmt(log.price)}<br/></>
-                                      ) : log.isMarginCall ? (
-                                        <>{log.qty} 股 @ ${fmt(log.price)}<br/></>
-                                      ) : null}
-                                      {log.fee > 0 && `手續/借券費 $${fmt(log.fee)}`}
+                                    {log.isAutoCover ? (
+                                          <>空單均價 ${fmt(log.shortAvgCost)} → 平倉價 ${fmt(log.price)}<br/></>
+                                    ) : log.action === 'inflation' ? (
+                                          <>現金通膨率 {gameState.inflationRate ?? 2}%<br/></>
+                                    ) : log.action !== 'fee' ? (
+                                          <>{log.qty} 股 @ ${fmt(log.price)}<br/></>
+                                    ) : null}
+                                        {log.fee > 0 && `手續/借券費 $${fmt(log.fee)}`}
                                     </div>
                                     <div className="text-right">
-                                      <div className={`font-black text-sm ${log.action === 'buy' || log.action === 'fee' || (log.action === 'system' && log.total < 0) ? 'text-[#FF5000]' : 'text-[#00C805]'}`}>
-                                        {log.action === 'system' 
-                                          ? `${log.total >= 0 ? '+' : '-'}$${fmt(Math.abs(log.total))}`
-                                          : `${log.action === 'buy' || log.action === 'fee' ? '-' : '+'}$${fmt(log.total)}`}
+                                      <div className={`font-black text-sm ${log.action === 'buy' || log.action === 'fee' || log.action === 'inflation' ? 'text-[#FF5000]' : 'text-[#00C805]'}`}>
+                                        {log.action === 'buy' || log.action === 'fee' || log.action === 'inflation' ? '-' : '+'}${fmt(log.total)}
                                       </div>
                                       <div className="text-[9px] text-slate-400 font-mono mt-0.5">{tsToTime(log.ts)}</div>
                                     </div>
