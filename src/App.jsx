@@ -140,6 +140,120 @@ const useLivePrice = (stockId, stocksRef) => {
   return price;
 };
 
+const OrderPanel = ({ stockId, team, stocks, stocksRef, gameState, tradeType, setTradeType, tradeQty, setTradeQty, handleTrade, getBasePrice, getBuyingPower }) => {
+  const price = useLivePrice(stockId, stocksRef);
+  const stock = stocks.find(s => s.id === stockId);
+  if (!stock || !team) return null;
+  const base  = getBasePrice(stock);
+  const isUp  = price >= base;
+  const held  = team?.holdings?.[stockId] || 0;
+  const pct   = base > 0 ? ((price - base) / base * 100) : 0;
+  const buyingPower = getBuyingPower(team, stocksRef.current); 
+  
+  const feeRate = gameState.feeRate || 0;
+  const safeQty = parseInt(tradeQty) || 0; 
+  const baseTotal = price * safeQty;
+  const feeAmount = baseTotal * (feeRate / 100);
+  
+  let manualBorrowFee = 0;
+  if (tradeType === 'buy' && held < 0) {
+    const borrowRate = stock.borrowRate || 0;
+    manualBorrowFee = baseTotal * (borrowRate / 100);
+  }
+  const finalAmount = tradeType === 'buy' ? baseTotal + feeAmount + manualBorrowFee : baseTotal - feeAmount;
+  
+  let maxBuy = 0; let maxSell = 0;
+  const affordableQty = Math.max(0, Math.floor(buyingPower / (price * (1 + feeRate/100))));
+
+  if (held < 0) { 
+     maxBuy = Math.abs(held); 
+     maxSell = affordableQty; 
+  } else if (held > 0) { 
+     maxBuy = affordableQty; 
+     maxSell = held; 
+  } else { 
+     maxBuy = affordableQty; 
+     maxSell = affordableQty; 
+  }
+
+  return (
+    <div className="bg-white/85 backdrop-blur-xl border border-slate-200 rounded-3xl p-6 relative shadow-sm">
+      {(!gameState.marketOpen || team.isBankrupt) && (
+        <div className="absolute inset-0 bg-white/70 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-3xl">
+          <i className={`fa-solid ${team.isBankrupt ? 'fa-skull text-rose-500' : 'fa-lock text-slate-400'} text-3xl mb-3`}></i>
+          <div className={`text-sm font-bold ${team.isBankrupt ? 'text-rose-500' : 'text-slate-500'}`}>{team.isBankrupt ? '帳戶已遭破產凍結' : 'Market Closed'}</div>
+          <div className="text-xs text-slate-400 mt-1">收盤中，無法下單</div>
+        </div>
+      )}
+      
+      {feeRate > 0 && (
+        <div className="flex justify-between items-center mb-3 bg-rose-50 p-2.5 rounded-lg border border-rose-100">
+          <span className="text-[10px] font-bold text-rose-600"><i className="fa-solid fa-circle-info mr-1.5"></i>交易手續費率</span>
+          <span className="text-xs font-black text-rose-600">{feeRate.toFixed(2)}%</span>
+        </div>
+      )}
+      {(stock.borrowRate || 0) > 0 && (
+        <div className="flex justify-between items-center mb-4 bg-blue-50 p-2.5 rounded-lg border border-blue-100">
+          <span className="text-[10px] font-bold text-[#0033A0]"><i className="fa-solid fa-clock-rotate-left mr-1.5"></i>放空借券費率 (平倉時收取)</span>
+          <span className="text-xs font-black text-[#0033A0]">{stock.borrowRate.toFixed(1)}%</span>
+        </div>
+      )}
+
+      <div className="mb-6">
+        <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{stock.symbol} · {stock.name}</div>
+        <AnimatedPrice key={stockId} price={price} stockId={stockId} size="text-4xl" className="block mt-2" />
+        <div className={`text-sm font-bold mt-1 ${isUp ? 'text-[#00C805]' : 'text-[#FF5000]'}`}>
+          {isUp ? '+' : '-'}{pct.toFixed(2)}% 本回合
+        </div>
+      </div>
+      <div className="flex border-b border-slate-100 mb-5">
+        {['buy','sell'].map(t => (
+          <button key={t} onClick={() => setTradeType(t)}
+            className={`flex-1 pb-3 text-sm font-black border-b-2 transition-all uppercase
+              ${tradeType === t ? (t === 'buy' ? 'border-[#00C805] text-[#00C805]' : 'border-[#FF5000] text-[#FF5000]') : 'border-transparent text-slate-400'}`}>
+            {t === 'buy' ? '買入 (Buy/Cover)' : '賣出 (Sell/Short)'}
+          </button>
+        ))}
+      </div>
+      <div className="space-y-4 mb-6">
+        <div className="flex justify-between items-center">
+          <span className="text-sm text-slate-400 font-bold">股數</span>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setTradeQty(1)} className="px-2 h-8 rounded-lg bg-slate-100 font-bold text-[10px] hover:bg-slate-200 transition text-slate-500">MIN</button>
+            <button onClick={() => setTradeQty(q => Math.max(1, (parseInt(q) || 0) - 1))} className="w-8 h-8 rounded-lg bg-slate-100 font-bold text-base hover:bg-slate-200 transition">−</button>
+            <input type="number" value={tradeQty} onChange={e => { const val = e.target.value; setTradeQty(val === '' ? '' : Math.max(0, parseInt(val) || 0)); }}
+              className="w-14 text-center bg-slate-100 rounded-lg py-1.5 text-sm font-black outline-none" />
+            <button onClick={() => setTradeQty(q => (parseInt(q) || 0) + 1)} className="w-8 h-8 rounded-lg bg-slate-100 font-bold text-base hover:bg-slate-200 transition">+</button>
+            <button onClick={() => setTradeQty(Math.max(1, tradeType === 'buy' ? maxBuy : maxSell))}
+              className="ml-2 px-3 h-8 rounded-lg bg-blue-50 text-[#0033A0] font-black text-[10px] hover:bg-blue-100 transition border border-blue-200 active:scale-95">MAX</button>
+          </div>
+        </div>
+        <div className="flex justify-between items-center border-t border-slate-100 pt-4">
+          <div>
+            <span className="text-sm font-bold text-slate-400 block">預估總額</span>
+            {(feeRate > 0 || manualBorrowFee > 0) && (
+              <span className="text-[10px] text-rose-500 font-bold block mt-0.5">
+                含手續/借券費 (${fmt(feeAmount + manualBorrowFee)})
+              </span>
+            )}
+          </div>
+          <AnimatedPrice price={finalAmount} stockId={`cost-${stockId}`} size="text-lg" />
+        </div>
+      </div>
+      <button onClick={handleTrade} disabled={!gameState.marketOpen || team.isBankrupt || !tradeQty || tradeQty <= 0}
+        className={`w-full py-4 rounded-2xl text-base font-black text-white transition-all active:scale-95
+          ${(!gameState.marketOpen || team.isBankrupt || !tradeQty || tradeQty <= 0) ? 'bg-slate-300' : tradeType === 'buy' ? 'bg-[#00C805] shadow-md shadow-[#00C805]/20' : 'bg-[#FF5000] shadow-md shadow-[#FF5000]/20'}`}>
+        {tradeType === 'buy' ? `確認買入 ${safeQty} 股` : `確認賣出 ${safeQty} 股`}
+      </button>
+      <div className="mt-4 text-center text-xs text-slate-500 font-bold">
+        {tradeType === 'buy'
+          ? `可用資金(BP) $${fmt(buyingPower)} · 最多可 ${held < 0 ? '回補' : '買'} ${maxBuy} 股`
+          : `目前 ${held >= 0 ? `持有 ${held}` : `放空 ${Math.abs(held)}`} 股 · 最多可 ${held > 0 ? '平倉' : '空'} ${maxSell} 股`}
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
   const [db, setDb]           = useState(null);
   const [loading, setLoading] = useState(true);
@@ -916,118 +1030,6 @@ export default function App() {
     );
   };
 
-  const OrderPanel = ({ stockId, team }) => {
-    const price = useLivePrice(stockId, stocksRef);
-    const stock = stocks.find(s => s.id === stockId);
-    if (!stock || !team) return null;
-    const base  = getBasePrice(stock);
-    const isUp  = price >= base;
-    const held  = team?.holdings?.[stockId] || 0;
-    const pct   = base > 0 ? ((price - base) / base * 100) : 0;
-    const buyingPower = getBuyingPower(team, stocksRef.current); 
-    
-    const feeRate = gameState.feeRate || 0;
-    const baseTotal = price * tradeQty;
-    const feeAmount = baseTotal * (feeRate / 100);
-    
-    let manualBorrowFee = 0;
-    if (tradeType === 'buy' && held < 0) {
-      const borrowRate = stock.borrowRate || 0;
-      manualBorrowFee = baseTotal * (borrowRate / 100);
-    }
-    const finalAmount = tradeType === 'buy' ? baseTotal + feeAmount + manualBorrowFee : baseTotal - feeAmount;
-    
-    let maxBuy = 0; let maxSell = 0;
-    const affordableQty = Math.max(0, Math.floor(buyingPower / (price * (1 + feeRate/100))));
-
-    if (held < 0) { 
-       maxBuy = Math.abs(held); 
-       maxSell = affordableQty; 
-    } else if (held > 0) { 
-       maxBuy = affordableQty; 
-       maxSell = held; 
-    } else { 
-       maxBuy = affordableQty; 
-       maxSell = affordableQty; 
-    }
-
-    return (
-      <div className="bg-white/85 backdrop-blur-xl border border-slate-200 rounded-3xl p-6 relative shadow-sm">
-        {(!gameState.marketOpen || team.isBankrupt) && (
-          <div className="absolute inset-0 bg-white/70 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-3xl">
-            {!team.isBankrupt && <i className="fa-solid fa-lock text-slate-400 text-3xl mb-3"></i>}
-            <div className={`text-sm font-bold ${team.isBankrupt ? 'text-rose-500' : 'text-slate-500'}`}>{team.isBankrupt ? '帳戶已遭破產凍結' : 'Market Closed'}</div>
-            <div className="text-xs text-slate-400 mt-1">收盤中，無法下單</div>
-          </div>
-        )}
-        
-        {feeRate > 0 && (
-          <div className="flex justify-between items-center mb-3 bg-rose-50 p-2.5 rounded-lg border border-rose-100">
-            <span className="text-[10px] font-bold text-rose-600"><i className="fa-solid fa-circle-info mr-1.5"></i>交易手續費率</span>
-            <span className="text-xs font-black text-rose-600">{feeRate.toFixed(2)}%</span>
-          </div>
-        )}
-        {(stock.borrowRate || 0) > 0 && (
-          <div className="flex justify-between items-center mb-4 bg-blue-50 p-2.5 rounded-lg border border-blue-100">
-            <span className="text-[10px] font-bold text-[#0033A0]"><i className="fa-solid fa-clock-rotate-left mr-1.5"></i>放空借券費率 (平倉時收取)</span>
-            <span className="text-xs font-black text-[#0033A0]">{stock.borrowRate.toFixed(1)}%</span>
-          </div>
-        )}
-
-        <div className="mb-6">
-          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{stock.symbol} · {stock.name}</div>
-          <AnimatedPrice key={stockId} price={price} stockId={stockId} size="text-4xl" className="block mt-2" />
-          <div className={`text-sm font-bold mt-1 ${isUp ? 'text-[#00C805]' : 'text-[#FF5000]'}`}>
-            {isUp ? '+' : '-'}{pct.toFixed(2)}% 本回合
-          </div>
-        </div>
-        <div className="flex border-b border-slate-100 mb-5">
-          {['buy','sell'].map(t => (
-            <button key={t} onClick={() => setTradeType(t)}
-              className={`flex-1 pb-3 text-sm font-black border-b-2 transition-all uppercase
-                ${tradeType === t ? (t === 'buy' ? 'border-[#00C805] text-[#00C805]' : 'border-[#FF5000] text-[#FF5000]') : 'border-transparent text-slate-400'}`}>
-              {t === 'buy' ? '買入 (Buy/Cover)' : '賣出 (Sell/Short)'}
-            </button>
-          ))}
-        </div>
-        <div className="space-y-4 mb-6">
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-slate-400 font-bold">股數</span>
-            <div className="flex items-center gap-1">
-              <button onClick={() => setTradeQty(1)} className="px-2 h-8 rounded-lg bg-slate-100 font-bold text-[10px] hover:bg-slate-200 transition text-slate-500">MIN</button>
-              <button onClick={() => setTradeQty(q => Math.max(1, q - 1))} className="w-8 h-8 rounded-lg bg-slate-100 font-bold text-base hover:bg-slate-200 transition">−</button>
-              <input type="number" value={tradeQty} onChange={e => setTradeQty(Math.max(1, parseInt(e.target.value) || 1))}
-                className="w-14 text-center bg-slate-100 rounded-lg py-1.5 text-sm font-black outline-none" />
-              <button onClick={() => setTradeQty(q => q + 1)} className="w-8 h-8 rounded-lg bg-slate-100 font-bold text-base hover:bg-slate-200 transition">+</button>
-              <button onClick={() => setTradeQty(Math.max(1, tradeType === 'buy' ? maxBuy : maxSell))}
-                className="ml-2 px-3 h-8 rounded-lg bg-blue-50 text-[#0033A0] font-black text-[10px] hover:bg-blue-100 transition border border-blue-200 active:scale-95">MAX</button>
-            </div>
-          </div>
-          <div className="flex justify-between items-center border-t border-slate-100 pt-4">
-            <div>
-              <span className="text-sm font-bold text-slate-400 block">預估總額</span>
-              {(feeRate > 0 || manualBorrowFee > 0) && (
-                <span className="text-[10px] text-rose-500 font-bold block mt-0.5">
-                  含手續/借券費 (${fmt(feeAmount + manualBorrowFee)})
-                </span>
-              )}
-            </div>
-            <AnimatedPrice price={finalAmount} stockId={`cost-${stockId}`} size="text-lg" />
-          </div>
-        </div>
-        <button onClick={handleTrade} disabled={!gameState.marketOpen || team.isBankrupt}
-          className={`w-full py-4 rounded-2xl text-base font-black text-white transition-all active:scale-95
-            ${!gameState.marketOpen || team.isBankrupt ? 'bg-slate-300' : tradeType === 'buy' ? 'bg-[#00C805] shadow-md shadow-[#00C805]/20' : 'bg-[#FF5000] shadow-md shadow-[#FF5000]/20'}`}>
-          {tradeType === 'buy' ? `確認買入 ${tradeQty} 股` : `確認賣出 ${tradeQty} 股`}
-        </button>
-        <div className="mt-4 text-center text-xs text-slate-500 font-bold">
-          {tradeType === 'buy'
-            ? `可用資金(BP) $${fmt(buyingPower)} · 最多可 ${held < 0 ? '回補' : '買'} ${maxBuy} 股`
-            : `目前 ${held >= 0 ? `持有 ${held}` : `放空 ${Math.abs(held)}`} 股 · 最多可 ${held > 0 ? '平倉' : '空'} ${maxSell} 股`}
-        </div>
-      </div>
-    );
-  };
 
   const LeaderboardContent = () => {
     if (!gameState.hasOpenedBefore) return (
@@ -1388,12 +1390,25 @@ export default function App() {
                               </div>
                               <div className="border-t border-slate-100 pt-6 mb-4">
                                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">公司簡介</div>
-                                <p className="text-sm text-slate-500 leading-relaxed bg-slate-50 p-4 rounded-xl">{selStock.desc}</p>
+                                <p className="text-sm text-slate-500 leading-relaxed bg-slate-50 p-4 rounded-xl whitespace-pre-wrap">{selStock.desc}</p>
                               </div>
                             </div>
                           </div>
                           <div className="w-full xl:w-80 shrink-0">
-                            <OrderPanel stockId={selectedStockId} team={team} />
+                            <OrderPanel 
+                              stockId={selectedStockId} 
+                              team={team} 
+                              stocks={stocks}
+                              stocksRef={stocksRef} 
+                              gameState={gameState}
+                              tradeType={tradeType}
+                              setTradeType={setTradeType}
+                              tradeQty={tradeQty}
+                              setTradeQty={setTradeQty}
+                              handleTrade={handleTrade}
+                              getBasePrice={getBasePrice}
+                              getBuyingPower={getBuyingPower}
+                    />
                           </div>
                         </div>
                       )}
