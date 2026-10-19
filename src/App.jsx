@@ -5,10 +5,8 @@ import {
   getFirestore, doc, setDoc, collection, onSnapshot, updateDoc, deleteDoc, writeBatch, addDoc, query, orderBy, limit, getDocs
 } from 'firebase/firestore';
 
-
-
 const firebaseConfig = {
-apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
@@ -531,7 +529,7 @@ const toggleMarket = () => {
   const handleAdvanceRound = () => {
     setConfirm({
       open: true,
-      msg: `即將進入第 ${gameState.currentRound + 1} 回合？\n\n1. 將結算「已持有一回合以上」的空單 (強制回補)。\n2. 若結算後總資產小於等於零，將給予警告；若連續兩回合小於等於零，將強制平倉並凍結帳戶。\n3. 目標價鎖定為新基準價。\n4. 更新借券費率。`,
+      msg: `即將進入第 ${gameState.currentRound + 1} 回合？\n\n1. 將結算「已持有一回合以上」的空單 (強制回補)。\n2. 若結算後總資產小於等於零，將給予警告；若連續兩回合小於等於零，將強制平倉並凍結帳戶。\n3. 目標價鎖定為新基準價。\n4. 更新借券費率。\n5. 清空上一回合的市場消息紀錄。`,
       fn: async () => {
         setConfirm({ open: false });
         try {
@@ -686,11 +684,14 @@ const toggleMarket = () => {
           const finalStocks = updatedStocks.map(({_tp, _oldBorrowRate, ...rest}) => rest);
           
           batch.set(bundleDocRef(), { stocks: finalStocks, updatedAt: Date.now() });
+          
+          // 🌟 清空上一回合的新聞廣播
           batch.update(gsDocRef(), {
             currentRound: gameState.currentRound + 1,
             marketOpen: false,
             basePrices: newBP,
-            previousRanks: newRanks
+            previousRanks: newRanks,
+            news: [] 
           });
           
           await batch.commit();
@@ -705,7 +706,8 @@ const toggleMarket = () => {
     try {
       const newMsg = { ts: Date.now(), text: newsInput, target: newsTarget };
       const currentNews = gameState.news || [];
-      await updateDoc(gsDocRef(), { news: [newMsg, ...currentNews].slice(0, 5) }); 
+      // 🌟 將儲存上限提升至 50 筆，確保當回合所有消息都能被看到
+      await updateDoc(gsDocRef(), { news: [newMsg, ...currentNews].slice(0, 50) }); 
       setNewsInput('');
       notify('success', '✅ 市場新聞已發布！');
     } catch (e) { notify('error', '廣播失敗'); }
@@ -965,7 +967,7 @@ const toggleMarket = () => {
         <span className="shrink-0 text-[10px] font-black tracking-widest bg-white/20 px-2 py-0.5 rounded animate-pulse">
           <i className="fa-solid fa-bullhorn mr-1.5"></i>MARKET NEWS
         </span>
-        <div className="text-sm font-bold truncate flex-1 leading-none">{activeNews.text}</div>
+        <div className="text-sm font-bold flex-1 leading-snug break-words whitespace-pre-wrap line-clamp-2">{activeNews.text}</div>
         <div className="shrink-0 text-[10px] opacity-70 font-mono hidden sm:block">{tsToTime(activeNews.ts)}</div>
       </div>
     );
@@ -1313,6 +1315,8 @@ const toggleMarket = () => {
           let totalBorrowFeePaid = team.accumulatedBorrowFee || 0;
 
           const teamLogs = tradeLogs.filter(log => log.teamId === team.id);
+          // 🌟 新增：專門為這個小隊過濾出當回合的最新消息
+          const teamNews = (gameState.news || []).filter(n => n.target === 'ALL' || n.target === team.id);
 
           const portfolio  = stocks.filter(s => (team.holdings?.[s.id] || 0) !== 0).map(s => {
             const shares = team.holdings[s.id];
@@ -1403,7 +1407,7 @@ const toggleMarket = () => {
                               </div>
                               <div className="border-t border-slate-100 pt-6 mb-4">
                                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">公司簡介</div>
-                                <p className="text-sm text-slate-500 leading-relaxed bg-slate-50 p-4 rounded-xl whitespace-pre-wrap">{selStock.desc}</p>
+                                <p className="text-sm text-slate-500 leading-relaxed bg-slate-50 p-4 rounded-xl whitespace-pre-wrap break-words">{selStock.desc}</p>
                               </div>
                             </div>
                           </div>
@@ -1530,50 +1534,82 @@ const toggleMarket = () => {
                         )}
                       </div>
 
-                      {/* 小隊歷史交易紀錄 */}
-                      <div className="w-full lg:w-[360px] shrink-0">
-                        <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-3 ml-1">交易紀錄(Recent Transactions)</div>
-                        <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm max-h-[600px] overflow-y-auto">
-                          {teamLogs.length === 0 ? (
-                            <div className="text-center py-8 text-slate-400 text-sm">尚無交易紀錄</div>
-                          ) : (
-                            <div className="space-y-3">
-                              {teamLogs.map(log => (
-                                <div key={log.id} className="p-3 rounded-xl bg-slate-50 border border-slate-100">
-                                  <div className="flex justify-between items-start mb-2">
-                                    <div className="flex items-center gap-2">
-                                      <span className={`text-[10px] font-black px-1.5 py-0.5 rounded uppercase 
-                                        ${log.isAutoCover || log.isMarginCall ? 'bg-amber-100 text-amber-600'
-                                        : log.action === 'inflation' ? 'bg-purple-100 text-purple-600'
-                                        : log.action === 'buy' ? 'bg-[#00C805]/10 text-[#00C805]' : log.action === 'sell' ? 'bg-[#FF5000]/10 text-[#FF5000]' : 'bg-blue-100 text-[#0033A0]'}`}>
-                                        {log.isMarginCall ? '系統平倉' : log.isAutoCover ? '換局回補' : log.action === 'inflation' ? '通膨扣款' : log.action === 'buy' ? '買入' : log.action === 'sell' ? '賣出' : '借券費'}
+                      {/* 🌟 新增與修改：右側側邊欄，包含新聞與交易紀錄 */}
+                      <div className="w-full lg:w-[360px] shrink-0 flex flex-col gap-6">
+                        
+                        {/* 🌟 市場最新消息區塊 */}
+                        <div className="flex flex-col">
+                          <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-3 ml-1">市場最新消息 (Market News)</div>
+                          <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm max-h-[350px] overflow-y-auto">
+                            {teamNews.length === 0 ? (
+                              <div className="text-center py-6 text-slate-400 text-sm">本回合尚無最新消息</div>
+                            ) : (
+                              <div className="space-y-3">
+                                {teamNews.map((n, idx) => (
+                                  <div key={idx} className={`p-3 rounded-xl border ${n.target === 'ALL' ? 'bg-blue-50/50 border-blue-100' : 'bg-rose-50/50 border-rose-100'}`}>
+                                    <div className="flex justify-between items-center mb-1.5">
+                                      <span className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase ${n.target === 'ALL' ? 'bg-blue-100 text-blue-600' : 'bg-rose-100 text-rose-600'}`}>
+                                        {n.target === 'ALL' ? '全服廣播' : '獨家內線'}
                                       </span>
-                                      <span className="font-bold text-sm">{log.symbol}</span>
+                                      <span className="text-[9px] text-slate-400 font-mono">{tsToTime(n.ts)}</span>
                                     </div>
-                                    <span className="text-[10px] font-black bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded">R{log.round}</span>
+                                    <div className="text-xs font-bold text-slate-700 leading-relaxed whitespace-pre-wrap break-words">
+                                      {n.text}
+                                    </div>
                                   </div>
-                                  <div className="flex justify-between items-end">
-                                    <div className="text-[10px] text-slate-400">
-                                    {log.isAutoCover ? (
-                                          <>空單均價 ${fmt(log.shortAvgCost)} → 平倉價 ${fmt(log.price)}<br/></>
-                                    ) : log.action === 'inflation' ? (
-                                          <>現金通膨率 {gameState.inflationRate ?? 2}%<br/></>
-                                    ) : log.action !== 'fee' ? (
-                                          <>{log.qty} 股 @ ${fmt(log.price)}<br/></>
-                                    ) : null}
-                                        {log.fee > 0 && `手續/借券費 $${fmt(log.fee)}`}
-                                    </div>
-                                    <div className="text-right">
-                                      <div className={`font-black text-sm ${log.action === 'buy' || log.action === 'fee' || log.action === 'inflation' ? 'text-[#FF5000]' : 'text-[#00C805]'}`}>
-                                        {log.action === 'buy' || log.action === 'fee' || log.action === 'inflation' ? '-' : '+'}${fmt(log.total)}
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* 小隊歷史交易紀錄 */}
+                        <div className="flex flex-col">
+                          <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-3 ml-1">交易紀錄(Recent Transactions)</div>
+                          <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm max-h-[400px] overflow-y-auto">
+                            {teamLogs.length === 0 ? (
+                              <div className="text-center py-8 text-slate-400 text-sm">尚無交易紀錄</div>
+                            ) : (
+                              <div className="space-y-3">
+                                {teamLogs.map(log => (
+                                  <div key={log.id} className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                                    <div className="flex justify-between items-start mb-2">
+                                      <div className="flex items-center gap-2">
+                                        <span className={`text-[10px] font-black px-1.5 py-0.5 rounded uppercase 
+                                          ${log.isAutoCover || log.isMarginCall ? 'bg-amber-100 text-amber-600'
+                                          : log.action === 'inflation' ? 'bg-purple-100 text-purple-600'
+                                          : log.action === 'buy' ? 'bg-[#00C805]/10 text-[#00C805]' : log.action === 'sell' ? 'bg-[#FF5000]/10 text-[#FF5000]' : log.action === 'system' ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-[#0033A0]'}`}>
+                                          {log.isMarginCall ? '系統平倉' : log.isAutoCover ? '換局回補' : log.action === 'inflation' ? '通膨扣款' : log.action === 'buy' ? '買入' : log.action === 'sell' ? '賣出' : log.action === 'system' ? '系統調整' : '借券費'}
+                                        </span>
+                                        <span className="font-bold text-sm">{log.symbol}</span>
                                       </div>
-                                      <div className="text-[9px] text-slate-400 font-mono mt-0.5">{tsToTime(log.ts)}</div>
+                                      <span className="text-[10px] font-black bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded">R{log.round}</span>
+                                    </div>
+                                    <div className="flex justify-between items-end">
+                                      <div className="text-[10px] text-slate-400">
+                                      {log.isAutoCover ? (
+                                          <>空單均價 ${fmt(log.shortAvgCost)} → 平倉價 ${fmt(log.price)}<br/></>
+                                      ) : log.action === 'inflation' ? (
+                                          <>現金通膨率 {gameState.inflationRate ?? 2}%<br/></>
+                                      ) : log.action === 'system' ? (
+                                          <>管理員手動調整資金<br/></>
+                                      ) : log.action !== 'fee' ? (
+                                          <>{log.qty} 股 @ ${fmt(log.price)}<br/></>
+                                      ) : null}
+                                        {log.fee > 0 && `手續/借券費 $${fmt(log.fee)}`}
+                                      </div>
+                                      <div className="text-right">
+                                        <div className={`font-black text-sm ${log.action === 'buy' || log.action === 'fee' || log.action === 'inflation' || (log.action === 'system' && log.total < 0) ? 'text-[#FF5000]' : 'text-[#00C805]'}`}>
+                                          {log.action === 'buy' || log.action === 'fee' || log.action === 'inflation' || (log.action === 'system' && log.total < 0) ? '-' : '+'}${fmt(Math.abs(log.total))}
+                                        </div>
+                                        <div className="text-[9px] text-slate-400 font-mono mt-0.5">{tsToTime(log.ts)}</div>
+                                      </div>
                                     </div>
                                   </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
