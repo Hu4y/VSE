@@ -1255,10 +1255,10 @@ const toggleMarket = () => {
               </div>
               <div className="flex-grow flex items-center justify-center p-8 mt-10 lg:mt-0">
                 <div className="w-full max-w-md space-y-4">
-                  <div className="mb-8 text-center lg:text-left">
-                    <img src="/logo.png" alt="Logo" className="h-21 w-auto mx-auto lg:mx-0 mb-4" />
-                    <h2 className="text-4xl tracking-tight mb-2 text-[#0033A0]" style={{ fontFamily: "'Rubik', sans-serif", fontWeight: 400 }}>IMF CAMP</h2>
-                    <p className="text-slate-500 font-bold">Virtual Stock Exchange</p>                    
+                  <div className="mb-8 flex flex-col items-center text-center">
+                    <img src="/logo.png" alt="Logo" className="h-21 w-auto mb-4" />
+                    <h2 className="text-4xl tracking-tight mb-2 text-[#0033A0]" style={{ fontFamily: "'Rubik', sans-serif", fontWeight: 400 }}>20th IMF CAMP</h2>
+                    <p className="text-slate-500 font-bold text-center w-full">Virtual Stock Exchange</p>                    
                   </div>
                   <div className="bg-white/75 backdrop-blur-xl border border-slate-200/60 rounded-3xl p-6 space-y-4 shadow-xl">
                     <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2"><i className="fa-solid fa-wallet mr-1.5"></i>Team Login</div>
